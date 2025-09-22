@@ -41,7 +41,7 @@ else:
 
 
 # 3. Basic example of sending a prompt to a Model
-messages = [{"role": "user", "content": "What is 2+2?"}]
+messages: list = [{"role": "user", "content": "What is 2+2?"}]
 
 
 # 4. Basic example of a model sending back a response

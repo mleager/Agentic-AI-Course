@@ -1,8 +1,8 @@
 import os
 import json
 import logging
-import re
-from typing import List, Tuple
+# import re
+from typing import List
 from openai import OpenAI
 from dotenv import load_dotenv
 import concurrent.futures

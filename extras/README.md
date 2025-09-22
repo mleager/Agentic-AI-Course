@@ -11,8 +11,8 @@ __My Additions__
 
 I'll add my Labs in a directory of each section
 
-Also create the learning/ directory to contain:
+    - notes
+    - exercises
+    - labs (using Classes alongside Jupyter Notebooks)
 
-    - Notes
-    - Exercises
-    - Python (using Classes instead of Jupyter Notebooks)
+    - got rid of the learning/ dir and moved contents into each corresponding section

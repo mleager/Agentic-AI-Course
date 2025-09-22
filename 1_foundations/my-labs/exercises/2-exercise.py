@@ -97,7 +97,7 @@ def ollama_answer() -> None:
         base_url=OLLAMA_BASE_URL
     )
 
-    model = "gemma2:9b"  # Updated to a more common model
+    model = "gemma3:12b"
     try:
         response = ollama.chat.completions.create(
             model=model,
