@@ -1,4 +1,5 @@
 import os
+import sys
 import logging
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -11,6 +12,10 @@ import gradio as gr
 # 2. Implement more robust error handling
 # 3. Add more features like file upload, resume suggestion, etc.
 # 4. Incorporate data and config classes?
+
+## ?? Questions ??
+# - Should RESUME and SUMMARY be globals?
+#   or should they prompt for user input of the file destination?
 
 NAME = "Mark Leager"
 OPENAI_MODEL = "gpt-4o-mini"
@@ -34,11 +39,12 @@ logger = setup_logging()
 
 
 def get_resume_material(filename: str) -> str:
+    # filename = input("Enter resume or summary filename: ")
     path = f"../../resume/{filename}"
     if not os.path.isfile(path):
         logger.error(f"File not found: {path}")
-        return "File not found"
-    
+        return "Error file not found"
+
     try:
         with open(path, "r") as f:
             material = f.read()
@@ -53,6 +59,15 @@ RESUME = get_resume_material("resume.md")
 SUMMARY = get_resume_material("summary.txt")
 
 
+def check_resume_availability():
+    logger.info("Checking resume availability...")
+    if RESUME.split(" ")[0].lower() == "error":
+        logger.error("Resume not found")
+        return False
+    logger.info("Resume available.")
+    return True
+
+
 class Evaluation(BaseModel):
     is_acceptable: bool
     feedback: str
@@ -65,6 +80,9 @@ class EvaluatorModel:
         self.client = OpenAI(api_key=os.getenv("GEMINI_API_KEY"), base_url=self.base_url)
         logger.info("EvaluatorModel initialized...")
 
+        # self.resume = resume
+        # self.summary = summary
+
 
     def evaluate(self, message: str, reply: str, history: list) -> Evaluation:
         logger.info("Evaluating Agent response...")
@@ -75,8 +93,8 @@ class EvaluatorModel:
                 {"role": "user", "content": self.evaluator_user_prompt(message, reply, history)}
             ]
             response = self.client.beta.chat.completions.parse(
-                model=self.model, 
-                messages=messages, 
+                model=self.model,
+                messages=messages,
                 response_format=Evaluation
             )
             evaluation = response.choices[0].message.parsed or Evaluation(is_acceptable=False, feedback="No evaluation provided")
@@ -135,14 +153,35 @@ class Chatbot:
         self.summary = summary
         self.model = OPENAI_MODEL
         self.client = OpenAI()
-        self.evaluator = EvaluatorModel()
+        self.evaluator = EvaluatorModel() # resume, summary
         logger.info(f"Chatbot initialized...")
 
 
-    # def prompt_for_resume_input(self):
-    #     message = input("Resume not found. Please enter or paste your resume text here:\n")
-    #     if len(message.strip()) > 1:
-    #         self.resume = message
+    def prompt_for_resume_input(self):
+        logger.info("Prompting for resume input...")
+        # TODO: Prompt if User wants to paste resume text or supply a new file
+
+        # Prompt user for resume file location
+        options = int(input("Select One\n1: Enter resume file location\n2: Paste resume as text\n"))
+        if options == 1:
+            filename = input("Enter resume file location: ")
+            self.resume = get_resume_material(filename)
+
+        elif options == 2:
+            # Paste resume as text to stdin
+            if not check_resume_availability():
+                while True:
+                    print("Enter/Paste your resume content. Press Crtl+D when you're finished to save:")
+                    lines = sys.stdin.readlines()
+                    text = ''.join(lines)
+                    if text.strip() != "":
+                        logger.info("Resume input confirmed")
+                        logger.info(f"Resume input: {text[:50]}...")
+                        self.resume = text
+                        break
+                    else:
+                        logger.info("Resume input not confirmed.")
+                        continue
 
 
     def chatbot_system_prompt(self, name, resume, summary: str) -> str:
@@ -191,23 +230,36 @@ class Chatbot:
             logger.info(evaluation.feedback)
             reply = self.rerun(message, reply, history, evaluation.feedback)
         return reply
-    
+
+
+def call_gradio_interface(func):
+    logger.info("Starting Gradio Chat Interface...")
+    try:
+        gr.ChatInterface(fn=func, type="messages").launch()
+    except KeyboardInterrupt:
+        logger.info("Gradio Chat Interface shutdown")
+        exit(0)
+
 
 def main():
     logger.info("Initializing Application Startup...")
     try:
+        # resume = get_resume_material("resume.md")
+        # summary = get_resume_material("summary.txt")
+
         chatbot = Chatbot()
 
-        # if RESUME == "Error reading file":
-        #     logger.error("Error reading resume file")
-        #     chatbot.prompt_for_resume_input()
+        if not check_resume_availability():
+            logger.info("Resume not found or there was an error...")
+            chatbot.prompt_for_resume_input()
+            call_gradio_interface(chatbot.chat)
+        else:
+            logger.info("Resume file found, starting chatbot...")
+            call_gradio_interface(chatbot.chat)
 
-        logger.info("Launching Gradio Chat Interface...")
-        gr.ChatInterface(fn=chatbot.chat, type="messages").launch()
-
-    except KeyboardInterrupt:
-        logger.info("Chatbot shutdown")
-        exit(0)
+    # except KeyboardInterrupt:
+    #     logger.info("Chatbot shutdown")
+    #     exit(0)
 
     except Exception as e:
         logger.error(f"Error starting application: {e}")
@@ -215,3 +267,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
