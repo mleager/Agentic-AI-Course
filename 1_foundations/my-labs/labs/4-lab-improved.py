@@ -16,8 +16,6 @@ LOG_FILE = "pushover.log"
 MONITOR_LOG = "monitor.log"
 MODEL = "gpt-4o-mini"
 
-# load_dotenv(override=True)
-
 
 def monitor_response_time(start_time):
     current = time.time()
@@ -65,20 +63,21 @@ def summary_fallback() -> str:
     return fallback
 
 
+# INFO: Continue to work on this
 @lru_cache(maxsize=1)
-def get_cached_content(self, content_type: str, file_path: str) -> str:
+def get_cached_content(content_type: str, file_path: str) -> str:
     try:
         with open(file_path, 'r') as file:
             content = file.read().strip()
             logger.info(f"Cached {content_type} content from: {file_path}")
             return content
+
     except Exception as e:
         logger.error(f"Error caching {content_type}: {e}")
         return ""
 
 
 def get_reference_material(filetype: str, filepath: str, fallback: str, max_attempts=3) -> str:
-    # perf = PerformanceOptimizer()
     attempts = 0
     current = filepath
 
@@ -94,6 +93,7 @@ def get_reference_material(filetype: str, filepath: str, fallback: str, max_atte
                 #     if content:
                 #         logger.info(f"Successfully loaded {filetype}: {current}")
                 #         return content
+
             except Exception as e:
                 logger.error(f"Error reading file: {e}")
 
@@ -110,7 +110,7 @@ def get_reference_material(filetype: str, filepath: str, fallback: str, max_atte
     return fallback
 
 
-# INFO: First Improvement: Santize input and set rate limit
+# INFO: Santize input and set rate limit
 class SecurityValidator:
     def __init__(self):
         self.max_message_length = 2000
@@ -156,7 +156,7 @@ class SecurityValidator:
         return True
 
 
-# INFO: Second Improvement: Validate environment variables
+# INFO: Validate environment variables
 class ConfigValidator:
     @staticmethod
     def validate_environment():
@@ -173,84 +173,11 @@ class ConfigValidator:
         logger.info(f"Environment variables validated.")
 
 
-# INFO: Third Improvement: Use caching?
-# class PerformanceOptimizer:
-#     def __init__(self):
-#         self.session = None
-#
-#     async def get_session(self) -> aiohttp.ClientSession:
-#         if self.session is None:
-#             connector = aiohttp.TCPConnector(
-#                 limit=100,
-#                 limit_per_host=10,
-#                 ttl_dns_cache=300,
-#                 use_dns_cache=True,
-#             )
-#             timout = aiohttp.ClientTimeout(total=10)
-#             self.session = aiohttp.ClientSession(connector=connector, timeout=timout)
-#
-#         return self.session
-#
-#     async def async_push_notification(self, text: str) -> bool:
-#         session = await self.get_session()
-#         try:
-#             async with session.post(
-#                 "https://api.pushover.net/1/messages.json", 
-#                 data={
-#                     "token": os.getenv("PUSHOVER_TOKEN"),
-#                     "user": os.getenv("PUSHOVER_USER"),
-#                     "message": text,
-#                 }
-#             ) as response:
-#                 response.raise_for_status()
-#                 logger.info("Push notification sent asynchronously.")
-#                 return True
-#
-#         except Exception as e:
-#             logger.error(f"Error sending push notification: {e}")
-#             return False
-#
-#     # INFO: Is this needed?
-#     @lru_cache(maxsize=1)
-#     def get_cached_content(self, content_type: str, file_path: str) -> str:
-#         try:
-#             with open(file_path, 'r') as file:
-#                 content = file.read().strip()
-#                 logger.info(f"Cached {content_type} content from: {file_path}")
-#                 return content
-#         except Exception as e:
-#             logger.error(f"Error caching {content_type}: {e}")
-#             return ""
-
-
-# INFO: Added:
-# --> PerformanceOptimizer for Async Push
-# --> SecurityValidator for Rate Limit and Email
+# INFO: Added SecurityValidator to Validate Email
 class Pushover:
     def __init__(self):
-        # self.perf = PerformanceOptimizer()
         self.secval = SecurityValidator()
 
-    # INFO: Apply async push method
-
-    # def push(self, text) -> bool:
-    #     logger.info(f"Sending push notification...")
-    #     try:
-    #         response = self.perf.async_push_notification(text)
-    #         if response:
-    #             logger.info("Push notification sent successfully.")
-    #             return True
-    #         # elif not response:
-    #         #     self.seq_push(text)
-    #         #     return True
-    #         else:
-    #             logger.warning("Failed to send push notification.")
-    #             return False
-    #     except Exception as e:
-    #         logger.error(f"Error sending push notification: {e}")
-    #         return False
-
-    # INFO: Original Push method (sequential)
     def push(self, text) -> bool:
         logger.info(f"Sending push notification...")
         try:
@@ -265,9 +192,11 @@ class Pushover:
             response.raise_for_status()
             logger.info("Push notification sent successfully.")
             return True
+
         except requests.exceptions.RequestException as e:
             logger.error(f"Error sending push notification: {e}")
             return False
+
         except Exception as e:
             logger.error(f"Error sending push notification: {e}")
             return False
@@ -275,11 +204,12 @@ class Pushover:
     def record_user_details(self, email, name="Not provided", notes="Not provided") -> dict:
         logger.info("Calling record_user_details tool...")
         try:
-            # INFO: Implement email validation from SecurityValidator
+            # INFO: email validation
             email = self.secval.validate_email(email)
             success = self.push(f"Recording {name} with email {email} and notes {notes}")
             logger.info("Recorded user details." if success else "Failed to record user details.")
             return {"recorded": "ok" if success else "error"}
+
         except Exception as e:
             logger.error(f"Error recording user details: {e}")
             return {"recorded": "error"}
@@ -289,6 +219,7 @@ class Pushover:
         try:
             success = self.push(f"Recording question with an unknown answer: {question}")
             logger.info("Recorded unknown question." if success else "Failed to record unknown question.")
+
             return {"recorded": "ok" if success else "error"}
         except Exception as e:
             logger.error(f"Error recording unknown question: {e}")
@@ -344,8 +275,7 @@ class Tools:
         ]
 
 
-# INFO: Added:
-# --> SecurityValidator for Rate Limit & Sanitize Input
+# INFO: Added SecurityValidator for Rate Limit & Sanitize Input
 class Chatbot:
     def __init__(self):
         self.name = "Mark"
@@ -390,6 +320,7 @@ class Chatbot:
                     "content": json.dumps({"error": "Invalid tool arguments"}),
                     "tool_call_id": tool_call.id
                 })
+
             except Exception as e:
                 logger.error(f"Error handling tool call {tool_call.function.name}: {e}")
                 results.append({
@@ -428,7 +359,7 @@ class Chatbot:
         if history is None:
             history = []
 
-        # INFO: Implement Sanitize Input
+        # INFO: Sanitize Input
         sanitized_message = self.secval.sanitize_input(message)
 
         messages: list[dict[str, str]] = [
@@ -449,11 +380,6 @@ class Chatbot:
 
             # TODO: Implement User ID system?
 
-            # TODO: Ensure this works as expected
-            # INFO: Check if Rate Limit is exceeded (removed)
-            # check_rate_limit = self.secval.check_rate_limit()
-
-            # INFO: Add rate limit check to condition (removed)
             while not done and retries < max_retries:
                 retries += 1
                 logger.info(f"OpenAI API call #{retries}")
