@@ -1,19 +1,17 @@
-from functools import lru_cache
 import os
 import re
 import json
 import time
 import bleach
 import logging
-import aiohttp
-# import requests
+import requests
+from functools import lru_cache
 from dotenv import load_dotenv
 from openai import OpenAI
 import gradio as gr
-# from concurrent.futures import ThreadPoolExecutor
 
-RESUME = "../../resume/resume.md"
-SUMMARY = "../../summary/summary.txt"
+RESUME = os.getenv(key="RESUME", default="../../resume/resume.md")
+SUMMARY = os.getenv(key="SUMMARY", default="../../summary/summary.txt")
 LOG_FILE = "pushover.log"
 MONITOR_LOG = "monitor.log"
 MODEL = "gpt-4o-mini"
@@ -31,7 +29,7 @@ def setup_logging(logger_name: str, filename: str):
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 
-    if not logger.handlers:
+    if not logger.hasHandlers():
         handler = logging.FileHandler(filename=filename)
         handler.setLevel(logging.INFO)
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -45,18 +43,57 @@ logger = setup_logging("chatbot", LOG_FILE)
 monitor = setup_logging("monitor", MONITOR_LOG)
 
 
-def get_resume_material(filename=RESUME, max_attempts=3) -> str:
+def resume_fallback() -> str:
+    fallback = f"""
+    DevOps Engineer with experience using common tools and technologies like Terraform, Kubernetes, and Docker.
+
+    Have built custom workflows and developed applications using AI technologies and frameworks.
+
+    Focus on automation and continuous improvement, leveraging AI technologies to drive efficiency and reliability.
+    """
+    return fallback
+
+
+def summary_fallback() -> str:
+    fallback = f"""
+    Self-taught, disciplined, great communicator.
+
+    I've worked on various projects, including infrastructure as code, DevOps, and AI-driven projects.
+
+    My focus has always been on improving the efficiency and reliability of my teams and applications.
+    """
+    return fallback
+
+
+@lru_cache(maxsize=1)
+def get_cached_content(self, content_type: str, file_path: str) -> str:
+    try:
+        with open(file_path, 'r') as file:
+            content = file.read().strip()
+            logger.info(f"Cached {content_type} content from: {file_path}")
+            return content
+    except Exception as e:
+        logger.error(f"Error caching {content_type}: {e}")
+        return ""
+
+
+def get_reference_material(filetype: str, filepath: str, fallback: str, max_attempts=3) -> str:
+    # perf = PerformanceOptimizer()
     attempts = 0
-    current = filename
+    current = filepath
 
     while attempts < max_attempts:
         if os.path.isfile(current):
             try:
-                with open(current, 'r') as file:
-                    content = file.read()
-                    if content:
-                        logger.info(f"Successfully loaded resume: {current}")
-                        return content
+                content = get_cached_content(filepath)
+                if content != "":
+                    logger.info(f"Successfully loaded {filetype}: {current}")
+                    return content
+                # with open(current, 'r') as file:
+                #     content = file.read()
+                #     if content:
+                #         logger.info(f"Successfully loaded {filetype}: {current}")
+                #         return content
             except Exception as e:
                 logger.error(f"Error reading file: {e}")
 
@@ -64,41 +101,13 @@ def get_resume_material(filename=RESUME, max_attempts=3) -> str:
         attempts += 1
 
         if attempts < max_attempts:
-            current = input(f"Enter resume file location (attempt {attempts}/{max_attempts}): ")
+            current = input(f"Enter {filetype} file location (attempt {attempts}/{max_attempts}): ")
             if not current:
                 logger.info("User chose to use fallback resume data.")
                 break
 
-    logger.warning(f"Failed to find resume file after {attempts} attempts. Using default resume.")
-    return "DevOps Engineer with experience using common tools and technologies like Terraform, Kubernetes, and Docker."
-
-
-def get_summary_material(filename=SUMMARY, max_attempts=3) -> str:
-    attempts = 0
-    current = filename
-
-    while attempts < max_attempts:
-        if os.path.isfile(current):
-            try:
-                with open(current, 'r') as file:
-                    content = file.read()
-                    if content:
-                        logger.info(f"Successfully loaded summary: {current}")
-                        return content
-            except Exception as e:
-                logger.error(f"Error reading file: {e}")
-
-        logger.warning(f"File not found: {current}. Retrying...")
-        attempts += 1
-
-        if attempts < max_attempts:
-            current = input(f"Enter summary file location (attempt {attempts}/{max_attempts}): ")
-            if not current:
-                logger.info("User chose to use fallback summary data.")
-                break
-
-    logger.warning(f"Failed to find summary file after {attempts} attempts. Using default summary.")
-    return "Self taught, disciplined, great communicator with strong DevOps background."
+    logger.warning(f"Failed to find {filetype} file after {attempts} attempts. Using fallback data.")
+    return fallback
 
 
 # INFO: First Improvement: Santize input and set rate limit
@@ -114,7 +123,7 @@ class SecurityValidator:
             # raise ValueError("Input must be a string")
             text = str(text)
 
-        sanitized = bleach.clean(text, tags=[], attributes={}, strip=True)
+        sanitized = bleach.clean(text=text, tags=[], attributes={}, strip=True)
 
         if len(sanitized) > self.max_message_length:
             sanitized = sanitized[:self.max_message_length]
@@ -164,57 +173,54 @@ class ConfigValidator:
         logger.info(f"Environment variables validated.")
 
 
-# INFO: Third Improvement: Use async/await for network requests
-class PerformanceOptimizer:
-    def __init__(self):
-        # TODO: Is this needed?
-        # self.executor = ThreadPoolExecutor(max_workers=4)
-
-        self.session = None
-
-    async def get_session(self) -> aiohttp.ClientSession:
-        if self.session is None:
-            connector = aiohttp.TCPConnector(
-                limit=100,
-                limit_per_host=10,
-                ttl_dns_cache=300,
-                use_dns_cache=True,
-            )
-            self.session = aiohttp.ClientSession(connector=connector)
-
-        return self.session
-
-    # INFO: Is this needed?
-    @lru_cache(maxsize=1)
-    def get_cached_content(self, content_type: str, file_path: str) -> str:
-        try:
-            with open(file_path, 'r') as file:
-                content = file.read().strip()
-                logger.info(f"Cached {content_type} content from: {file_path}")
-                return content
-        except Exception as e:
-            logger.error(f"Error caching {content_type}: {e}")
-            return ""
-
-    async def async_push_notification(self, text: str) -> bool:
-        session = await self.get_session()
-        try:
-            async with session.post(
-                "https://api.pushover.net/1/messages.json", 
-                data={
-                    "token": os.getenv("PUSHOVER_TOKEN"),
-                    "user": os.getenv("PUSHOVER_USER"),
-                    "message": text,
-                },
-                timeout=10
-            ) as response:
-                response.raise_for_status()
-                logger.info("Push notification sent asynchronously.")
-                return True
-
-        except Exception as e:
-            logger.error(f"Error sending push notification: {e}")
-            return False
+# INFO: Third Improvement: Use caching?
+# class PerformanceOptimizer:
+#     def __init__(self):
+#         self.session = None
+#
+#     async def get_session(self) -> aiohttp.ClientSession:
+#         if self.session is None:
+#             connector = aiohttp.TCPConnector(
+#                 limit=100,
+#                 limit_per_host=10,
+#                 ttl_dns_cache=300,
+#                 use_dns_cache=True,
+#             )
+#             timout = aiohttp.ClientTimeout(total=10)
+#             self.session = aiohttp.ClientSession(connector=connector, timeout=timout)
+#
+#         return self.session
+#
+#     async def async_push_notification(self, text: str) -> bool:
+#         session = await self.get_session()
+#         try:
+#             async with session.post(
+#                 "https://api.pushover.net/1/messages.json", 
+#                 data={
+#                     "token": os.getenv("PUSHOVER_TOKEN"),
+#                     "user": os.getenv("PUSHOVER_USER"),
+#                     "message": text,
+#                 }
+#             ) as response:
+#                 response.raise_for_status()
+#                 logger.info("Push notification sent asynchronously.")
+#                 return True
+#
+#         except Exception as e:
+#             logger.error(f"Error sending push notification: {e}")
+#             return False
+#
+#     # INFO: Is this needed?
+#     @lru_cache(maxsize=1)
+#     def get_cached_content(self, content_type: str, file_path: str) -> str:
+#         try:
+#             with open(file_path, 'r') as file:
+#                 content = file.read().strip()
+#                 logger.info(f"Cached {content_type} content from: {file_path}")
+#                 return content
+#         except Exception as e:
+#             logger.error(f"Error caching {content_type}: {e}")
+#             return ""
 
 
 # INFO: Added:
@@ -222,51 +228,49 @@ class PerformanceOptimizer:
 # --> SecurityValidator for Rate Limit and Email
 class Pushover:
     def __init__(self):
-        self.perf = PerformanceOptimizer()
+        # self.perf = PerformanceOptimizer()
         self.secval = SecurityValidator()
 
     # INFO: Apply async push method
-    def push(self, text) -> bool:
-        logger.info(f"Sending push notification...")
-        try:
-            response = self.perf.async_push_notification(text)
-            if response:
-                logger.info("Push notification sent successfully.")
-                return True
-            # TODO: Add fallback mechanism here?
-            # elif not response:
-            #     self.seq_push(text)
-            #     return True
-            else:
-                logger.warning("Failed to send push notification.")
-                return False
-        except Exception as e:
-            logger.error(f"Error sending push notification: {e}")
-            return False
 
-    # TODO: Make a fallback Push method?
-    # INFO: Original Push method (sequential)
-
-    # def seq_push(self, text) -> bool:
+    # def push(self, text) -> bool:
     #     logger.info(f"Sending push notification...")
     #     try:
-    #         response = requests.post("https://api.pushover.net/1/messages.json",
-    #             data={
-    #                 "token": os.getenv("PUSHOVER_TOKEN"),
-    #                 "user": os.getenv("PUSHOVER_USER"),
-    #                 "message": text,
-    #             },
-    #             timeout=10
-    #         )
-    #         response.raise_for_status()
-    #         logger.info("Push notification sent successfully.")
-    #         return True
-    #     except requests.exceptions.RequestException as e:
-    #         logger.error(f"Error sending push notification: {e}")
-    #         return False
+    #         response = self.perf.async_push_notification(text)
+    #         if response:
+    #             logger.info("Push notification sent successfully.")
+    #             return True
+    #         # elif not response:
+    #         #     self.seq_push(text)
+    #         #     return True
+    #         else:
+    #             logger.warning("Failed to send push notification.")
+    #             return False
     #     except Exception as e:
     #         logger.error(f"Error sending push notification: {e}")
     #         return False
+
+    # INFO: Original Push method (sequential)
+    def push(self, text) -> bool:
+        logger.info(f"Sending push notification...")
+        try:
+            response = requests.post("https://api.pushover.net/1/messages.json",
+                data={
+                    "token": os.getenv("PUSHOVER_TOKEN"),
+                    "user": os.getenv("PUSHOVER_USER"),
+                    "message": text,
+                },
+                timeout=10
+            )
+            response.raise_for_status()
+            logger.info("Push notification sent successfully.")
+            return True
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error sending push notification: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Error sending push notification: {e}")
+            return False
 
     def record_user_details(self, email, name="Not provided", notes="Not provided") -> dict:
         logger.info("Calling record_user_details tool...")
@@ -352,8 +356,8 @@ class Chatbot:
         # INFO: Improvements
         self.secval = SecurityValidator()
 
-        self.resume = get_resume_material()
-        self.summary = get_summary_material()
+        self.resume = get_reference_material("Resume", RESUME, resume_fallback())
+        self.summary = get_reference_material("Summary", SUMMARY, summary_fallback())
 
         logger.info("Chatbot initialized successfully.")
 
@@ -433,6 +437,11 @@ class Chatbot:
             {"role": "user", "content": sanitized_message}
         ]
 
+        # INFO: Check Rate Limit here
+        if not self.secval.check_rate_limit():
+            logger.warning("Rate limit exceeded. Skipping API call.")
+            return "Rate limit exceeded. Please wait before trying again."
+
         try:
             done = False
             max_retries = 5
@@ -441,11 +450,11 @@ class Chatbot:
             # TODO: Implement User ID system?
 
             # TODO: Ensure this works as expected
-            # INFO: Check if Rate Limit is exceeded
-            check_rate_limit = self.secval.check_rate_limit()
+            # INFO: Check if Rate Limit is exceeded (removed)
+            # check_rate_limit = self.secval.check_rate_limit()
 
-            # INFO: Add rate limit check to condition
-            while not done and retries < max_retries and not check_rate_limit:
+            # INFO: Add rate limit check to condition (removed)
+            while not done and retries < max_retries:
                 retries += 1
                 logger.info(f"OpenAI API call #{retries}")
 
