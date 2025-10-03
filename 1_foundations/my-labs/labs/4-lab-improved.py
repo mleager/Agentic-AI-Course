@@ -64,10 +64,10 @@ def summary_fallback() -> str:
 
 
 # INFO: Continue to work on this
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=2)
 def get_cached_content(content_type: str, file_path: str) -> str:
     try:
-        with open(file_path, 'r') as file:
+        with open(file_path, 'r', encoding='utf-8') as file:
             content = file.read().strip()
             logger.info(f"Cached {content_type} content from: {file_path}")
             return content
@@ -81,30 +81,34 @@ def get_reference_material(filetype: str, filepath: str, fallback: str, max_atte
     attempts = 0
     current = filepath
 
+    if os.path.isfile(current):
+        try:
+            content = get_cached_content(filetype, current)
+            if content:
+                logger.info(f"Successfully loaded {filetype}: {current}")
+                return content
+
+        except Exception as e:
+            logger.error(f"Error reading file: {e}")
+
     while attempts < max_attempts:
-        if os.path.isfile(current):
-            try:
-                content = get_cached_content(filepath)
-                if content != "":
-                    logger.info(f"Successfully loaded {filetype}: {current}")
-                    return content
-                # with open(current, 'r') as file:
-                #     content = file.read()
-                #     if content:
-                #         logger.info(f"Successfully loaded {filetype}: {current}")
-                #         return content
-
-            except Exception as e:
-                logger.error(f"Error reading file: {e}")
-
-        logger.warning(f"File not found: {current}. Retrying...")
-        attempts += 1
-
-        if attempts < max_attempts:
+        try: 
             current = input(f"Enter {filetype} file location (attempt {attempts}/{max_attempts}): ")
             if not current:
                 logger.info("User chose to use fallback resume data.")
                 break
+
+            if os.path.isfile(current):
+                content = get_cached_content(filetype, current)
+                if content:
+                    logger.info(f"Successfully loaded {filetype}: {current}")
+                    return content
+
+            logger.warning(f"File not found: {current}. Retrying...")
+            attempts += 1
+        
+        except Exception as e:
+            logger.error(f"Error validating {filetype} file: {e}")
 
     logger.warning(f"Failed to find {filetype} file after {attempts} attempts. Using fallback data.")
     return fallback
@@ -286,8 +290,11 @@ class Chatbot:
         # INFO: Improvements
         self.secval = SecurityValidator()
 
-        self.resume = get_reference_material("Resume", RESUME, resume_fallback())
-        self.summary = get_reference_material("Summary", SUMMARY, summary_fallback())
+        resume_fallback_str = resume_fallback()
+        summary_fallback_str = summary_fallback()
+
+        self.resume = get_reference_material("Resume", RESUME, resume_fallback_str)
+        self.summary = get_reference_material("Summary", SUMMARY, summary_fallback_str)
 
         logger.info("Chatbot initialized successfully.")
 
@@ -388,8 +395,8 @@ class Chatbot:
 
                 response = self.openai.chat.completions.create(
                     model=MODEL,
-                    messages=messages,
-                    tools=self.tools.tools_list
+                    messages=messages,          # type: ignore
+                    tools=self.tools.tools_list # type: ignore
                 )
 
                 finish_reason = response.choices[0].finish_reason
@@ -397,7 +404,7 @@ class Chatbot:
                     message_obj = response.choices[0].message
                     tool_calls = message_obj.tool_calls
                     results = self.handle_tool_call(tool_calls)
-                    messages.append(message_obj)
+                    messages.append(message_obj) # type: ignore
                     messages.extend(results)
                 else:
                     done = True
@@ -408,7 +415,7 @@ class Chatbot:
                 logger.warning("Failed to complete conversation after multiple retries.")
                 return "Failed to complete conversation. Please try again."
 
-            return response.choices[0].message.content or "Response not found. Please try again."
+            return response.choices[0].message.content or "Response not found. Please try again." # type: ignore
 
         except Exception as e:
             logger.error(f"Error in chat method: {e}")
