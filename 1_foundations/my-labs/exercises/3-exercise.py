@@ -39,7 +39,6 @@ logger = setup_logging()
 
 
 def get_resume_material(filename: str) -> str:
-    # filename = input("Enter resume or summary filename: ")
     path = f"../../resume/{filename}"
     if not os.path.isfile(path):
         logger.error(f"File not found: {path}")
@@ -79,10 +78,6 @@ class EvaluatorModel:
         self.base_url = os.getenv("GEMINI_BASE_URL")
         self.client = OpenAI(api_key=os.getenv("GEMINI_API_KEY"), base_url=self.base_url)
         logger.info("EvaluatorModel initialized...")
-
-        # self.resume = resume
-        # self.summary = summary
-
 
     def evaluate(self, message: str, reply: str, history: list) -> Evaluation:
         logger.info("Evaluating Agent response...")
@@ -153,13 +148,12 @@ class Chatbot:
         self.summary = summary
         self.model = OPENAI_MODEL
         self.client = OpenAI()
-        self.evaluator = EvaluatorModel() # resume, summary
+        self.evaluator = EvaluatorModel()
         logger.info(f"Chatbot initialized...")
 
 
     def prompt_for_resume_input(self):
         logger.info("Prompting for resume input...")
-        # TODO: Prompt if User wants to paste resume text or supply a new file
 
         # Prompt user for resume file location
         options = int(input("Select One\n1: Enter resume file location\n2: Paste resume as text\n"))
@@ -244,9 +238,6 @@ def call_gradio_interface(func):
 def main():
     logger.info("Initializing Application Startup...")
     try:
-        # resume = get_resume_material("resume.md")
-        # summary = get_resume_material("summary.txt")
-
         chatbot = Chatbot()
 
         if not check_resume_availability():
@@ -257,9 +248,9 @@ def main():
             logger.info("Resume file found, starting chatbot...")
             call_gradio_interface(chatbot.chat)
 
-    # except KeyboardInterrupt:
-    #     logger.info("Chatbot shutdown")
-    #     exit(0)
+    except KeyboardInterrupt:
+        logger.info("Chatbot shutdown")
+        exit(0)
 
     except Exception as e:
         logger.error(f"Error starting application: {e}")
