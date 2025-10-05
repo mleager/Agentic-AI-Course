@@ -30,7 +30,9 @@ def setup_logging(logger_name: str, filename: str):
     if not logger.hasHandlers():
         handler = logging.FileHandler(filename=filename)
         handler.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
@@ -42,7 +44,7 @@ monitor = setup_logging("monitor", MONITOR_LOG)
 
 
 def resume_fallback() -> str:
-    fallback = f"""
+    fallback = """
     DevOps Engineer with experience using common tools and technologies like Terraform, Kubernetes, and Docker.
 
     Have built custom workflows and developed applications using AI technologies and frameworks.
@@ -53,7 +55,7 @@ def resume_fallback() -> str:
 
 
 def summary_fallback() -> str:
-    fallback = f"""
+    fallback = """
     Self-taught, disciplined, great communicator.
 
     I've worked on various projects, including infrastructure as code, DevOps, and AI-driven projects.
@@ -67,7 +69,7 @@ def summary_fallback() -> str:
 @lru_cache(maxsize=2)
 def get_cached_content(content_type: str, file_path: str) -> str:
     try:
-        with open(file_path, 'r', encoding='utf-8') as file:
+        with open(file_path, "r", encoding="utf-8") as file:
             content = file.read().strip()
             logger.info(f"Cached {content_type} content from: {file_path}")
             return content
@@ -77,23 +79,27 @@ def get_cached_content(content_type: str, file_path: str) -> str:
         return ""
 
 
-def get_reference_material(filetype: str, filepath: str, fallback: str, max_attempts=3) -> str:
-    attempts = 0
-    current = filepath
-
-    if os.path.isfile(current):
+def get_reference_material(
+    filetype: str, filepath: str, fallback: str, max_attempts=3
+) -> str:
+    if os.path.isfile(filepath):
         try:
-            content = get_cached_content(filetype, current)
+            content = get_cached_content(filetype, filepath)
             if content:
-                logger.info(f"Successfully loaded {filetype}: {current}")
+                logger.info(f"Successfully loaded {filetype}: {filepath}")
                 return content
 
         except Exception as e:
             logger.error(f"Error reading file: {e}")
+    
+    attempts = 0
+    current = filepath
 
     while attempts < max_attempts:
-        try: 
-            current = input(f"Enter {filetype} file location (attempt {attempts}/{max_attempts}): ")
+        try:
+            current = input(
+                f"Enter {filetype} file location (attempt {attempts}/{max_attempts}): "
+            )
             if not current:
                 logger.info("User chose to use fallback resume data.")
                 break
@@ -106,15 +112,17 @@ def get_reference_material(filetype: str, filepath: str, fallback: str, max_atte
 
             logger.warning(f"File not found: {current}. Retrying...")
             attempts += 1
-        
+
         except Exception as e:
             logger.error(f"Error validating {filetype} file: {e}")
 
-    logger.warning(f"Failed to find {filetype} file after {attempts} attempts. Using fallback data.")
+    logger.warning(
+        f"Failed to find {filetype} file after {attempts} attempts. Using fallback data."
+    )
     return fallback
 
 
-# INFO: Santize input and set rate limit
+# INFO: Santize input, validate email, set rate limit
 class SecurityValidator:
     def __init__(self):
         self.max_message_length = 2000
@@ -124,19 +132,24 @@ class SecurityValidator:
 
     def sanitize_input(self, text) -> str:
         if not isinstance(text, str):
-            # raise ValueError("Input must be a string")
-            text = str(text)
+            try:
+                text = str(text)
+            except Exception as e:
+                logger.error(f"Error sanitizing input: {e}")
+                raise ValueError("Input must be a string")
 
         sanitized = bleach.clean(text=text, tags=[], attributes={}, strip=True)
 
         if len(sanitized) > self.max_message_length:
-            sanitized = sanitized[:self.max_message_length]
-            logger.warning(f"Message length exceeded maximum allowed length. Truncated to {self.max_message_length} characters.")
+            sanitized = sanitized[: self.max_message_length]
+            logger.warning(
+                f"Message length exceeded maximum allowed length. Truncated to {self.max_message_length} characters."
+            )
 
         return sanitized.strip()
 
     def validate_email(self, email: str) -> bool:
-        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         return re.match(pattern, email) is not None
 
     def check_rate_limit(self, user_id: str = "default") -> bool:
@@ -147,7 +160,8 @@ class SecurityValidator:
             self.user_requests[user_id] = []
 
         self.user_requests[user_id] = [
-            req_time for req_time in self.user_requests[user_id]
+            req_time
+            for req_time in self.user_requests[user_id]
             if current_time - req_time < self.rate_limit_window
         ]
 
@@ -174,7 +188,7 @@ class ConfigValidator:
         if missing_vars:
             logger.error(f"Missing required environment variables: {missing_vars}")
 
-        logger.info(f"Environment variables validated.")
+        logger.info("Environment variables validated.")
 
 
 # INFO: Added SecurityValidator to Validate Email
@@ -183,15 +197,16 @@ class Pushover:
         self.secval = SecurityValidator()
 
     def push(self, text) -> bool:
-        logger.info(f"Sending push notification...")
+        logger.info("Sending push notification...")
         try:
-            response = requests.post("https://api.pushover.net/1/messages.json",
+            response = requests.post(
+                "https://api.pushover.net/1/messages.json",
                 data={
                     "token": os.getenv("PUSHOVER_TOKEN"),
                     "user": os.getenv("PUSHOVER_USER"),
                     "message": text,
                 },
-                timeout=10
+                timeout=10,
             )
             response.raise_for_status()
             logger.info("Push notification sent successfully.")
@@ -205,13 +220,24 @@ class Pushover:
             logger.error(f"Error sending push notification: {e}")
             return False
 
-    def record_user_details(self, email, name="Not provided", notes="Not provided") -> dict:
-        logger.info("Calling record_user_details tool...")
+    def record_user_details(
+        self, email, name="Not provided", notes="Not provided"
+    ) -> dict:
+        logger.info("Calling 'record_user_details' tool...")
         try:
             # INFO: email validation
-            email = self.secval.validate_email(email)
-            success = self.push(f"Recording {name} with email {email} and notes {notes}")
-            logger.info("Recorded user details." if success else "Failed to record user details.")
+            if not self.secval.validate_email(email):
+                logger.warning(f"Invalid email address: {email}")
+                return {"recorded": "error"}
+
+            success = self.push(
+                f"Recording {name} with email {email} and notes {notes}"
+            )
+            logger.info(
+                "Recorded user details."
+                if success
+                else "Failed to record user details."
+            )
             return {"recorded": "ok" if success else "error"}
 
         except Exception as e:
@@ -219,10 +245,16 @@ class Pushover:
             return {"recorded": "error"}
 
     def record_unknown_question(self, question) -> dict:
-        logger.info("Calling record_unknown_question tool...")
+        logger.info("Calling 'record_unknown_question' tool...")
         try:
-            success = self.push(f"Recording question with an unknown answer: {question}")
-            logger.info("Recorded unknown question." if success else "Failed to record unknown question.")
+            success = self.push(
+                f"Recording question with an unknown answer: {question}"
+            )
+            logger.info(
+                "Recorded unknown question."
+                if success
+                else "Failed to record unknown question."
+            )
 
             return {"recorded": "ok" if success else "error"}
         except Exception as e:
@@ -240,37 +272,36 @@ class Tools:
                 "properties": {
                     "email": {
                         "type": "string",
-                        "description": "The email address of this user"
+                        "description": "The email address of this user",
                     },
                     "name": {
                         "type": "string",
-                        "description": "The user's name, if they provided it"
-                    }
-                    ,
+                        "description": "The user's name, if they provided it",
+                    },
                     "notes": {
                         "type": "string",
-                        "description": "Any additional information about the conversation that's worth recording to give context"
-                    }
+                        "description": "Any additional information about the conversation that's worth recording to give context",
+                    },
                 },
                 "required": ["email"],
-                "additionalProperties": False
-            }
+                "additionalProperties": False,
+            },
         }
 
         self.record_unknown_question_json = {
-        "name": "record_unknown_question",
-        "description": "Always use this tool to record any question that couldn't be answered as you didn't know the answer",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "question": {
-                    "type": "string",
-                    "description": "The question that couldn't be answered"
+            "name": "record_unknown_question",
+            "description": "Always use this tool to record any question that couldn't be answered as you didn't know the answer",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "question": {
+                        "type": "string",
+                        "description": "The question that couldn't be answered",
+                    },
                 },
+                "required": ["question"],
+                "additionalProperties": False,
             },
-            "required": ["question"],
-            "additionalProperties": False
-            }
         }
 
         self.tools_list: list[dict[str, object]] = [
@@ -302,39 +333,57 @@ class Chatbot:
         logger.info(f"Handling {len(tool_calls)} tool calls...")
         results = []
 
+        tool_methods = {
+            "record_user_details": self.pushover.record_user_details, 
+            "record_unknown_question": self.pushover.record_unknown_question
+        }
+
         for tool_call in tool_calls:
             try:
                 tool_name = tool_call.function.name
                 arguments = json.loads(tool_call.function.arguments)
 
-                if tool_name == "record_user_details":
-                    result = self.pushover.record_user_details(**arguments)
-                elif tool_name == "record_unknown_question":
-                    result = self.pushover.record_unknown_question(**arguments)
+                # INFO: Create a dict of tool_name and function and call the tool method
+                tool_method = tool_methods.get(tool_name, None)
+                if tool_method:
+                    result = tool_method(**arguments)
                 else:
                     result = {"error": f"Tool '{tool_name}' not found"}
 
-                results.append({
-                    "role": "tool",
-                    "content": json.dumps(result),
-                    "tool_call_id": tool_call.id
-                })
+                # INFO: Use hasattr() to check if tool method exists before calling
+                # if hasattr(self.pushover, tool_name):
+                #     tool_meth = getattr(self.pushover, tool_name)
+                #     result = tool_meth(**arguments)
+                # else:
+                #     result = {"error": f"Tool '{tool_name}' not found"}
+
+                results.append(
+                    {
+                        "role": "tool",
+                        "content": json.dumps(result),
+                        "tool_call_id": tool_call.id,
+                    }
+                )
 
             except json.JSONDecodeError as e:
                 logger.error(f"Error parsing tool arguments: {e}")
-                results.append({
-                    "role": "tool",
-                    "content": json.dumps({"error": "Invalid tool arguments"}),
-                    "tool_call_id": tool_call.id
-                })
+                results.append(
+                    {
+                        "role": "tool",
+                        "content": json.dumps({"error": "Invalid tool arguments"}),
+                        "tool_call_id": tool_call.id,
+                    }
+                )
 
             except Exception as e:
                 logger.error(f"Error handling tool call {tool_call.function.name}: {e}")
-                results.append({
-                    "role": "tool",
-                    "content": json.dumps({"error": str(e)}),
-                    "tool_call_id": tool_call.id
-                })
+                results.append(
+                    {
+                        "role": "tool",
+                        "content": json.dumps({"error": str(e)}),
+                        "tool_call_id": tool_call.id,
+                    }
+                )
 
         return results
 
@@ -369,11 +418,11 @@ class Chatbot:
         # INFO: Sanitize Input
         sanitized_message = self.secval.sanitize_input(message)
 
-        messages: list[dict[str, str]] = [
-            {"role": "system", "content": self.system_prompt()}
-        ] + history + [
-            {"role": "user", "content": sanitized_message}
-        ]
+        messages: list[dict[str, str]] = (
+            [{"role": "system", "content": self.system_prompt()}]
+            + history
+            + [{"role": "user", "content": sanitized_message}]
+        )
 
         # INFO: Check Rate Limit here
         if not self.secval.check_rate_limit():
@@ -395,8 +444,8 @@ class Chatbot:
 
                 response = self.openai.chat.completions.create(
                     model=MODEL,
-                    messages=messages,          # type: ignore
-                    tools=self.tools.tools_list # type: ignore
+                    messages=messages,  # type: ignore
+                    tools=self.tools.tools_list,  # type: ignore
                 )
 
                 finish_reason = response.choices[0].finish_reason
@@ -404,7 +453,7 @@ class Chatbot:
                     message_obj = response.choices[0].message
                     tool_calls = message_obj.tool_calls
                     results = self.handle_tool_call(tool_calls)
-                    messages.append(message_obj) # type: ignore
+                    messages.append(message_obj)  # type: ignore
                     messages.extend(results)
                 else:
                     done = True
@@ -412,10 +461,15 @@ class Chatbot:
                 monitor_response_time(start)
 
             if retries >= max_retries:
-                logger.warning("Failed to complete conversation after multiple retries.")
+                logger.warning(
+                    "Failed to complete conversation after multiple retries."
+                )
                 return "Failed to complete conversation. Please try again."
 
-            return response.choices[0].message.content or "Response not found. Please try again." # type: ignore
+            return (
+                response.choices[0].message.content # type: ignore
+                or "Response not found. Please try again."
+            )
 
         except Exception as e:
             logger.error(f"Error in chat method: {e}")
@@ -424,7 +478,6 @@ class Chatbot:
 
 if __name__ == "__main__":
     load_dotenv(override=True)
-    # INFO: Call validate_environemt()
     ConfigValidator().validate_environment()
 
     logger.info("Starting application...")
@@ -441,4 +494,3 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"Unexpected error in chat: {e}")
         exit(1)
-
