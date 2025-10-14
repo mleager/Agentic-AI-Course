@@ -21,22 +21,22 @@ from agents import Agent, Runner, trace, function_tool
 
 load_dotenv(override=True)
 
-GMAIL = os.getenv('GMAIL', '')
-OPENAI_MODEL = 'gpt-4o-mini'
+GMAIL = os.getenv("GMAIL", "")
+OPENAI_MODEL = "gpt-4o-mini"
 
 
 @function_tool
 def send_html_email(subject: str, html_body: str) -> dict[str, str]:
     context = ssl.create_default_context()
 
-    msg = MIMEText(html_body, 'html')
-    msg['Subject'] = subject
-    msg['From'] = GMAIL
-    msg['To'] = GMAIL
+    msg = MIMEText(html_body, "html")
+    msg["Subject"] = subject
+    msg["From"] = GMAIL
+    msg["To"] = GMAIL
 
     try:
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context) as server:
-            server.login(GMAIL, os.getenv('APPG', ''))
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
+            server.login(GMAIL, os.getenv("APPG", ""))
             err = server.send_message(msg)
             if err:
                 return {"status": "error"}
@@ -44,7 +44,7 @@ def send_html_email(subject: str, html_body: str) -> dict[str, str]:
     except Exception as e:
         print(f"Error sending email: {e}")
         return {"status": "error"}
-    
+
 
 ####  --------  Create Subject Writer and HTML Converter Agents/Tools  --------- ####
 
@@ -61,7 +61,9 @@ subject_tool = subject_writer.as_tool("subject_writer", "Write a subject for an 
 
 
 html_converter = Agent("HTML Converter", html_instructions, model=OPENAI_MODEL)
-html_tool = html_converter.as_tool("html_converter", "Convert a text email body to HTML")
+html_tool = html_converter.as_tool(
+    "html_converter", "Convert a text email body to HTML"
+)
 
 
 html_tools = [subject_tool, html_tool, send_html_email]
@@ -70,7 +72,7 @@ html_tools = [subject_tool, html_tool, send_html_email]
 ####  --------  Create Emailer Agent  --------- ####
 # Will have access to the subject_tool, html_tool, and send_html_email function
 
-instructions ="""You are an email formatter and sender. You receive the body of an email to be sent.
+instructions = """You are an email formatter and sender. You receive the body of an email to be sent.
 You first use the subject_writer tool to write a subject for the email, then use the html_converter tool 
 to convert the body to HTML.
 Make sure to use the ouput from subject_writer and html_converter tools without modifying their outputs.
@@ -82,7 +84,8 @@ emailer_agent = Agent(
     instructions=instructions,
     tools=html_tools,
     model=OPENAI_MODEL,
-    handoff_description="Convert an email to HTML and send it")
+    handoff_description="Convert an email to HTML and send it",
+)
 
 
 #### --------  Create Sales Agent  --------- ####
@@ -96,7 +99,7 @@ charismatic = sales_agent_instructions + "Be charismatic and engaging"
 busy = sales_agent_instructions + "Be busy and avoid interrupting"
 
 
-sales_agent1 = Agent(name="Sales Agent",instructions=direct,model=OPENAI_MODEL)
+sales_agent1 = Agent(name="Sales Agent", instructions=direct, model=OPENAI_MODEL)
 tool1 = sales_agent1.as_tool("sales_agent1", "Write a cold sales email")
 
 
@@ -108,16 +111,15 @@ sales_agent3 = Agent(name="Sales Agent 3", instructions=busy, model=OPENAI_MODEL
 tool3 = sales_agent3.as_tool("sales_agent3", "Write a cold sales email")
 
 
-
 #### --------  Define Tools and Handoff for Sales Manager Agent  --------- ####
 
 tools = [tool1, tool2, tool3]
-handoff = [emailer_agent]
+handoff: list = [emailer_agent]
 
 
 #### --------  Create Sales Manager Agent  --------- ####
 # Will have acces to sales_agent tools
-# Will then have a handoff to the emailer_agent 
+# Will then have a handoff to the emailer_agent
 # (which has the subject/html tools and send_html_email func)
 
 sales_manager_instructions = """
@@ -139,9 +141,10 @@ Crucial Rules:
 sales_manager = Agent(
     name="Sales Manager",
     instructions=sales_manager_instructions,
-    tools=tools,
-    handoffs=handoff, # type: ignore
-    model="gpt-4o-mini")
+    tools=tools,  # tools:         [sales_agent1, sales_agent2, sales_agent3]
+    handoffs=handoff,  # emailer_agent: [subject_writer, html_converter, send_html_email]
+    model="gpt-4o-mini",
+)
 
 message = "Send out a cold sales email addressed to Dear CEO from Alice"
 

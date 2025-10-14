@@ -17,8 +17,8 @@ from agents import Agent, Runner, trace, function_tool
 
 load_dotenv(override=True)
 
-GMAIL = os.getenv('GMAIL', '')
-OPENAI_MODEL = 'gpt-4o-mini'
+GMAIL = os.getenv("GMAIL", "")
+OPENAI_MODEL = "gpt-4o-mini"
 
 
 @function_tool
@@ -26,17 +26,17 @@ def send_gmail(subject: str, body: str):
     """Send an email with a given subject and body."""
     context = ssl.create_default_context()
 
-    msg = MIMEText(body, 'plain')
-    msg['Subject'] = subject
-    msg['From'] = GMAIL
-    msg['To'] = GMAIL
+    msg = MIMEText(body, "plain")
+    msg["Subject"] = subject
+    msg["From"] = GMAIL
+    msg["To"] = GMAIL
 
     try:
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context) as server:
-            server.login(GMAIL, os.getenv('APPG', ''))
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
+            server.login(GMAIL, os.getenv("APPG", ""))
             server.send_message(msg)
     except Exception as e:
-        print(f'Error sending email: {e}')
+        print(f"Error sending email: {e}")
 
 
 ####  --------  Create Email Agents  --------  ####
@@ -106,16 +106,16 @@ Crucial Rules:
 
 
 sales_manager = Agent(
-    name="Sales Manager", 
-    instructions=manager_instructions, 
-    tools=tools, 
-    model=OPENAI_MODEL)
+    name="Sales Manager",
+    instructions=manager_instructions,
+    tools=tools,
+    model=OPENAI_MODEL,
+)
 
 message = "Send a cold sales email addressed to 'Dear CEO'"
 
 
 async def main():
-
     with trace("Sales manager"):
         result = await Runner.run(sales_manager, message)
         print(result.final_output)
