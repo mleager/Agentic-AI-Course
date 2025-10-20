@@ -2,14 +2,16 @@
 
 ## Takeaways
 
-__Placement__:          Input guardrails run before agent processing, output guardrails run after
-__Function vs Agent__:  Simple checks use functions, complex validation uses dedicated agents
-__Structured Outputs__: Use Pydantic models for consistent guardrail responses
-__Layered Protection__: Combine multiple guardrails for comprehensive safety
-__Context Awareness__:  Guardrails can access user context and history for smarter decisions
-__Tripwire Logic__:     tripwire_triggered=True blocks the request/response
+__Placement__: Input guardrails run before agent processing, output guardrails run after  
+__Function vs Agent__: Simple checks use functions, complex validation uses dedicated agents  
+__Structured Outputs__: Use Pydantic models for consistent guardrail responses  
+__Layered Protection__: Combine multiple guardrails for comprehensive safety  
+__Context Awareness__: Guardrails can access user context and history for smarter decisions  
+__Tripwire Logic__: `tripwire_triggered=True` blocks the request/response  
+
 
 ## Intro 
+
 Guardrails can't be inserted at all points in the workflow
 
 Guardrails can only be used in 2 places:

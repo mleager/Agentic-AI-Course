@@ -2,30 +2,29 @@
 
 ## Basic Terminology
 
-Agents:
+`Agents`:
 
-    Represents the AI Model (LLM)
-
-
-Handoffs:
-
-    Represents the interaction between Agents
+- Represents the AI Model (LLM)
 
 
-Guardrails:
+`Handoffs`:
 
-    Represents the checks/controls you put around the Agent to stay in scope of the task
+- Represents the interaction between Agents
 
 
-Sessions:
+`Guardrails`:
 
-    Automatically maintains conversation history across Agent Runs
+- Represents the checks/controls you put around the Agent to stay in scope of the task
+
+
+`Sessions`:
+
+- Automatically maintains conversation history across Agent Runs
 
 
 ## 3 Steps to run an Agent
 
 Create  -->  Track  -->  Run
-
 
 1. Create an instance of Agent
 
@@ -47,35 +46,35 @@ The SDK has two driving design principles:
 
 __Agent loop:__
 
-    Built-in agent loop that handles calling tools, sending results to the LLM, and looping until the LLM is done
+- Built-in agent loop that handles calling tools, sending results to the LLM, and looping until the LLM is done
 
 
 __Python-first:__
 
-    Use built-in language features to orchestrate and chain agents, rather than needing to learn new abstractions
+- Use built-in language features to orchestrate and chain agents, rather than needing to learn new abstractions
 
 
 __Handoffs:__
 
-    A powerful feature to coordinate and delegate between multiple agents
+- A powerful feature to coordinate and delegate between multiple agents
 
 
 __Guardrails:__
 
-    Run input validations and checks in parallel to your agents, breaking early if the checks fail
+- Run input validations and checks in parallel to your agents, breaking early if the checks fail
 
 
 __Sessions:__
 
-    Automatic conversation history management across agent runs, eliminating manual state handling
+- Automatic conversation history management across agent runs, eliminating manual state handling
 
 
 __Function tools:__
 
-    Turn any Python function into a tool, with automatic schema generation and Pydantic-powered validation
+- Turn any Python function into a tool, with automatic schema generation and Pydantic-powered validation
 
 
 __Tracing:__
 
-    Built-in tracing that lets you visualize, debug and monitor your workflows, as well as use the OpenAI suite  
-    of evaluation, fine-tuning and distillation tools.
+- Built-in tracing that lets you visualize, debug and monitor your workflows,  
+  as well as use the OpenAI suite of evaluation, fine-tuning and distillation tools.
