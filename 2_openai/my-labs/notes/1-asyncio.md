@@ -1,87 +1,139 @@
-# Async in Python
+# Asyncio
 
-## Basics
+## Common Async Usage
 
-Asynchronous IO is an approach used to achieve concurrency by allowing processing to continue  
+`Create_Task`:
 
-- while responses from IO operations are still being waited on  
+- Creates a "future"
+- Results of an async function
+- usually used with list comprehension to group tasks together
 
-
-To achieve this, IO function calls are made to be non-blocking, so that they return immediately
-
-- before the actual IO operation is complete or has even begun  
-
-
-Most, if not all, Frameworks use `async` 
+```python
+tasks = [async_func(item) for item in dataset]
+```
 
 
-Syntax uses `async/await` keywords:
+`Gather`:
 
-- async def func()
-- await func()
+- list of the completed tasks
+- process all results and return them in order
+- uses '*tasks'
 
+```python
+tasks = [async_func(item) for item in dataset]
 
-## Purpose of Async
-
-Enables concurrent execution of tasks without blocking the main program thread
-
-
-Useful for when a program may take a while waiting for:
-
-- an external resource
+gathering = await asyncio.gather(*tasks)
+```
 
 
-Beneficial for:
+`As_Completed`:
 
-- I/O bound operations
-- network requests
-- file I/O
-- database queries
+- processes items concurrently and handle results as they complete
+- loop through the tasks as they are ready, and not necessarily in order
 
+```python
+task_list = []
 
-## Key Components
+tasks = [async_func(item) for item in dataset]
 
-__Event Loop__
-
-- The heart of `asyncio`
-
-- A single-threaded loop that manages and executes asynchronous tasks
-
-
-__Coroutines__
-
-- Functions defined with `async def` that can be paused and resumed
+for task in asyncio.as_completed(tasks):
+  item = await task
+  task_list.append(task)
+```
 
 
-__Concurrency vs Parallelism__
+## Rate Limiting with Semaphore
 
-Concurrency:
+Semaphore is a `Rate-Limiter`
 
-- asyncio runs multiple tasks on a single thread by switching between them during wait times 
+- set the number of concurrent tasks at a time
+- Semaphore has an internal counter to limit number of tasks
 
+```python
+async def worker(name: str, semaphore: asyncio.Semaphore):
 
-Parallelism:
-
-- running tasks simultaneously on multiple CPU cores (not what async does)
-
-
-## Key characteristics of asynchronous programming with async in Python
-
-
-__Concurrency, not parallelism:__
-
-- asyncio achieves concurrency on a single thread by efficiently switching between tasks during I/O wait times  
-
-- It does not run multiple tasks in parallel on different CPU cores like multithreading or multiprocessing.
+  async with semaphore:
+    return await do_task(name)
 
 
-__Event Loop:__
+# Using Gather
+async def rate_limited_gather(concurrentcy_limit: int = 3):
 
-- asyncio relies on an event loop, which manages and schedules the execution of coroutines.
+  semaphore = asyncio.Semaphore(concurrentcy_limit)
+
+  tasks = [worker(name, semaphore) for name in dataset]
+
+  results = await asyncio.gather(*tasks)
 
 
-__I/O-bound tasks:__
+# Using As_Completed
+async def rate_limited_as_completed(concurrentcy_limit: int = 3):
 
-- Asynchronous programming is most effective for tasks that involve waiting for external operations, as it allows the program to utilize that waiting time for other tasks. 
+  task_list = []
 
-- It's generally not suitable for CPU-bound tasks, which would still block the single event loop.
+  semaphore = asyncio.Semaphore(concurrentcy_limit)
+
+  tasks = [worker(text, semaphore) for text in dataset]
+
+  for task in asyncio.as_completed(tasks):
+    result = await task
+    task_list.append(result)
+```
+
+
+## Gather vs As_Completed
+
+`Gather`: 
+
+- Execute multiple awaitables (coroutines or tasks) concurrently  
+  and waits for all of them to complete
+
+- Returns a list of results in the same order as the input 
+
+- Raised by first Exception by default
+
+- Use when you need all results to be available before continuing,
+  and the order of results is important 
+
+
+`As_Completed`:
+
+- Returns an iterator that yields completed awaitables as they finish,  
+  regardless of their input order
+
+- Allows you to process results as soon as each task completed,  
+  without waiting for all tasks. 
+
+- The order of results is determined by their order of completion
+
+- Allows for processing individual results and Exceptions as they occur
+
+- Use when you want to process results as they become available,  
+  or when some tasks might take much longer than others and you  
+  don't want to block on the slowest one
+
+
+## When to Use Them
+
+
+__asyncio.gather__:
+
+- You need results in the same order as input
+- All tasks must complete successfully
+- You want the fastest possible execution
+- Memory usage isn't a concern
+
+__asyncio.as_completed__:
+
+- You want to process results as they arrive
+- Order doesn't matter
+- You're streaming data to clients
+- You want to handle large datasets efficiently
+
+__asyncio.Semaphore / rate limiting__:
+
+- Working with API rate limits
+- Being respectful to external services
+- Managing resource consumption
+- Building production applications
+
